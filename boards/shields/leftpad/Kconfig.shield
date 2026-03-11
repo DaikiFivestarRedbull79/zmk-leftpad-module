@@ -1,3 +1,2 @@
 config SHIELD_LEFTPAD
     def_bool y
-    select ZMK_KEYBOARD_NAME
