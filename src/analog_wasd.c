@@ -27,11 +27,13 @@ static int16_t y_buf;
 static struct adc_sequence x_seq = {
     .buffer = &x_buf,
     .buffer_size = sizeof(x_buf),
+    .resolution = 12,
 };
 
 static struct adc_sequence y_seq = {
     .buffer = &y_buf,
     .buffer_size = sizeof(y_buf),
+    .resolution = 12,
 };
 
 static void leftpad_analog_thread(void *, void *, void *) {
