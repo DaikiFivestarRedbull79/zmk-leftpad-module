@@ -1,4 +1,3 @@
-#include <hal/nrf_saadc.h>
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/adc.h>
@@ -6,39 +5,27 @@
 
 LOG_MODULE_REGISTER(leftpad_analog, LOG_LEVEL_INF);
 
-#define DEAD_LOW 1000
-#define DEAD_HIGH 3000
+#if IS_ENABLED(CONFIG_LEFTPAD_ANALOG_WASD)
 
-static const struct device *adc_dev;
+#define STACK_SIZE 1024
+#define THREAD_PRIORITY 7
+
+#define LEFTPAD_LOW_THR   1000
+#define LEFTPAD_HIGH_THR  3000
+
+static const struct adc_dt_spec x_spec = ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), 0);
+static const struct adc_dt_spec y_spec = ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), 1);
 
 static int16_t x_buf;
 static int16_t y_buf;
 
-static struct adc_channel_cfg x_channel_cfg = {
-    .gain = ADC_GAIN_1_4,
-    .reference = ADC_REF_VDD_1_4,
-    .acquisition_time = ADC_ACQ_TIME_DEFAULT,
-    .channel_id = 0,
-    .input_positive = NRF_SAADC_INPUT_AIN0,
-};
-
-static struct adc_channel_cfg y_channel_cfg = {
-    .gain = ADC_GAIN_1_4,
-    .reference = ADC_REF_VDD_1_4,
-    .acquisition_time = ADC_ACQ_TIME_DEFAULT,
-    .channel_id = 1,
-    .input_positive = NRF_SAADC_INPUT_AIN1,
-};
-
 static struct adc_sequence x_seq = {
-    .channels = BIT(0),
     .buffer = &x_buf,
     .buffer_size = sizeof(x_buf),
     .resolution = 12,
 };
 
 static struct adc_sequence y_seq = {
-    .channels = BIT(1),
     .buffer = &y_buf,
     .buffer_size = sizeof(y_buf),
     .resolution = 12,
@@ -49,34 +36,66 @@ static bool right_pressed = false;
 static bool up_pressed = false;
 static bool down_pressed = false;
 
-void analog_thread(void)
-{
-    adc_dev = DEVICE_DT_GET(DT_NODELABEL(adc));
-
-    if (!device_is_ready(adc_dev)) {
-        LOG_ERR("ADC not ready");
-        return;
-    }
-
-    adc_channel_setup(adc_dev, &x_channel_cfg);
-    adc_channel_setup(adc_dev, &y_channel_cfg);
+static void leftpad_analog_thread(void *, void *, void *) {
+    int err;
 
     LOG_INF("LEFTPAD ANALOG THREAD STARTED");
 
+    if (!adc_is_ready_dt(&x_spec) || !adc_is_ready_dt(&y_spec)) {
+        LOG_ERR("ADC device not ready");
+        return;
+    }
+
+    LOG_INF("ADC ready: X=%s Y=%s",
+            adc_is_ready_dt(&x_spec) ? "ok" : "ng",
+            adc_is_ready_dt(&y_spec) ? "ok" : "ng");
+
+    err = adc_channel_setup_dt(&x_spec);
+    if (err < 0) {
+        LOG_ERR("Failed to setup X ADC channel: %d", err);
+        return;
+    }
+
+    err = adc_channel_setup_dt(&y_spec);
+    if (err < 0) {
+        LOG_ERR("Failed to setup Y ADC channel: %d", err);
+        return;
+    }
+
+    LOG_INF("ADC channels initialized");
+
     while (1) {
+        int x_mv = 0;
+        int y_mv = 0;
 
-        adc_read(adc_dev, &x_seq);
-        adc_read(adc_dev, &y_seq);
+        adc_sequence_init_dt(&x_spec, &x_seq);
+        adc_sequence_init_dt(&y_spec, &y_seq);
 
-        int x = x_buf;
-        int y = y_buf;
+        x_seq.resolution = 12;
+        y_seq.resolution = 12;
 
-        LOG_INF("RAW X=%d Y=%d", x, y);
+        err = adc_read_dt(&x_spec, &x_seq);
+        if (err == 0) {
+            x_mv = x_buf;
+            (void)adc_raw_to_millivolts_dt(&x_spec, &x_mv);
+        } else {
+            LOG_ERR("adc_read_dt X failed: %d", err);
+        }
 
-        bool new_left  = x < DEAD_LOW;
-        bool new_right = x > DEAD_HIGH;
-        bool new_down  = y < DEAD_LOW;
-        bool new_up    = y > DEAD_HIGH;
+        err = adc_read_dt(&y_spec, &y_seq);
+        if (err == 0) {
+            y_mv = y_buf;
+            (void)adc_raw_to_millivolts_dt(&y_spec, &y_mv);
+        } else {
+            LOG_ERR("adc_read_dt Y failed: %d", err);
+        }
+
+        LOG_INF("RAW X=%d RAW Y=%d | X=%d mV Y=%d mV", x_buf, y_buf, x_mv, y_mv);
+
+        bool new_left  = x_buf < LEFTPAD_LOW_THR;
+        bool new_right = x_buf > LEFTPAD_HIGH_THR;
+        bool new_down  = y_buf < LEFTPAD_LOW_THR;
+        bool new_up    = y_buf > LEFTPAD_HIGH_THR;
 
         if (new_left != left_pressed) {
             left_pressed = new_left;
@@ -98,6 +117,16 @@ void analog_thread(void)
             LOG_INF("DOWN %s", down_pressed ? "ON" : "OFF");
         }
 
-        k_msleep(20);
+        k_msleep(CONFIG_LEFTPAD_ANALOG_POLL_MS);
     }
 }
+
+K_THREAD_DEFINE(leftpad_analog_tid,
+                STACK_SIZE,
+                leftpad_analog_thread,
+                NULL, NULL, NULL,
+                THREAD_PRIORITY,
+                0,
+                0);
+
+#endif
