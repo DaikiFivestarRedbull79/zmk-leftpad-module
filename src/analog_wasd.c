@@ -2,6 +2,8 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/adc.h>
 #include <zephyr/logging/log.h>
+#include <zmk/hid.h>
+#include <dt-bindings/zmk/keys.h>
 
 LOG_MODULE_REGISTER(leftpad_analog, LOG_LEVEL_INF);
 
@@ -35,6 +37,29 @@ static bool left_pressed = false;
 static bool right_pressed = false;
 static bool up_pressed = false;
 static bool down_pressed = false;
+
+static void send_key_state(uint32_t keycode, bool pressed) {
+    int err;
+
+    if (pressed) {
+        err = zmk_hid_press(keycode);
+        if (err < 0) {
+            LOG_ERR("zmk_hid_press failed: %d", err);
+            return;
+        }
+    } else {
+        err = zmk_hid_release(keycode);
+        if (err < 0) {
+            LOG_ERR("zmk_hid_release failed: %d", err);
+            return;
+        }
+    }
+
+    LOG_INF("KEY %s %s", pressed ? "DOWN" : "UP",
+            keycode == D ? "D" :
+            keycode == A ? "A" :
+            keycode == W ? "W" : "S");
+}
 
 static void leftpad_analog_thread(void *, void *, void *) {
     int err;
@@ -105,6 +130,7 @@ static void leftpad_analog_thread(void *, void *, void *) {
         if (new_right != right_pressed) {
             right_pressed = new_right;
             LOG_INF("RIGHT %s", right_pressed ? "ON" : "OFF");
+            send_key_state(D, right_pressed);
         }
 
         if (new_up != up_pressed) {
