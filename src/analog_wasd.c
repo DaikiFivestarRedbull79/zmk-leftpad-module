@@ -2,8 +2,7 @@
 #include <zephyr/device.h>
 #include <zephyr/drivers/adc.h>
 #include <zephyr/logging/log.h>
-#include <zmk/hid.h>
-#include <dt-bindings/zmk/keys.h>
+
 
 LOG_MODULE_REGISTER(leftpad_analog, LOG_LEVEL_INF);
 
