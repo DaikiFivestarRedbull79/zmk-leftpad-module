@@ -42,6 +42,10 @@ static void leftpad_analog_thread(void *, void *, void *) {
         return;
     }
 
+    LOG_INF("ADC ready: X=%s Y=%s",
+        adc_is_ready_dt(&x_spec) ? "ok" : "ng",
+        adc_is_ready_dt(&y_spec) ? "ok" : "ng");
+
     err = adc_channel_setup_dt(&x_spec);
     if (err < 0) {
         LOG_ERR("Failed to setup X ADC channel: %d", err);
@@ -53,6 +57,8 @@ static void leftpad_analog_thread(void *, void *, void *) {
         LOG_ERR("Failed to setup Y ADC channel: %d", err);
         return;
     }
+
+    LOG_INF("ADC channels initialized");
 
     while (1) {
         int x_mv = 0;
