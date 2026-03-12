@@ -129,7 +129,6 @@ static void leftpad_analog_thread(void *, void *, void *) {
         if (new_right != right_pressed) {
             right_pressed = new_right;
             LOG_INF("RIGHT %s", right_pressed ? "ON" : "OFF");
-            send_key_state(D, right_pressed);
         }
 
         if (new_up != up_pressed) {
