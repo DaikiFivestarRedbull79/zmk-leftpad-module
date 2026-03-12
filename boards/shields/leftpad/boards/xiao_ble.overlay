@@ -1,3 +1,6 @@
+#include <zephyr/dt-bindings/adc/nrf-saadc.h>
+#include <zephyr/dt-bindings/adc/adc.h>
+
 / {
     zephyr,user {
         io-channels = <&adc 0>, <&adc 1>;
