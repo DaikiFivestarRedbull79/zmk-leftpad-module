@@ -1,11 +1,3 @@
-/*
- * First-pass analog WASD reader for leftpad
- * Reads two ADC channels and logs / tracks direction state.
- *
- * This is a starter implementation and may need one round of adjustment
- * depending on the exact XIAO ADC node naming in the active ZMK/Zephyr version.
- */
-
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/adc.h>
@@ -13,87 +5,98 @@
 
 LOG_MODULE_REGISTER(leftpad_analog, LOG_LEVEL_INF);
 
-#if IS_ENABLED(CONFIG_LEFTPAD_ANALOG_WASD)
+#define DEAD_LOW 1000
+#define DEAD_HIGH 3000
 
-#define STACK_SIZE 1024
-#define THREAD_PRIORITY 7
-
-static const struct adc_dt_spec x_spec = ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), 0);
-static const struct adc_dt_spec y_spec = ADC_DT_SPEC_GET_BY_IDX(DT_PATH(zephyr_user), 1);
+static const struct device *adc_dev;
 
 static int16_t x_buf;
 static int16_t y_buf;
 
+static struct adc_channel_cfg x_channel_cfg = {
+    .gain = ADC_GAIN_1_4,
+    .reference = ADC_REF_VDD_1_4,
+    .acquisition_time = ADC_ACQ_TIME_DEFAULT,
+    .channel_id = 0,
+    .input_positive = NRF_SAADC_AIN0,
+};
+
+static struct adc_channel_cfg y_channel_cfg = {
+    .gain = ADC_GAIN_1_4,
+    .reference = ADC_REF_VDD_1_4,
+    .acquisition_time = ADC_ACQ_TIME_DEFAULT,
+    .channel_id = 1,
+    .input_positive = NRF_SAADC_AIN1,
+};
+
 static struct adc_sequence x_seq = {
+    .channels = BIT(0),
     .buffer = &x_buf,
     .buffer_size = sizeof(x_buf),
     .resolution = 12,
 };
 
 static struct adc_sequence y_seq = {
+    .channels = BIT(1),
     .buffer = &y_buf,
     .buffer_size = sizeof(y_buf),
     .resolution = 12,
 };
 
-static void leftpad_analog_thread(void *, void *, void *) {
+static bool left_pressed = false;
+static bool right_pressed = false;
+static bool up_pressed = false;
+static bool down_pressed = false;
+
+void analog_thread(void)
+{
+    adc_dev = DEVICE_DT_GET(DT_NODELABEL(adc));
+
+    if (!device_is_ready(adc_dev)) {
+        LOG_ERR("ADC not ready");
+        return;
+    }
+
+    adc_channel_setup(adc_dev, &x_channel_cfg);
+    adc_channel_setup(adc_dev, &y_channel_cfg);
+
     LOG_INF("LEFTPAD ANALOG THREAD STARTED");
-    int err;
-
-    if (!adc_is_ready_dt(&x_spec) || !adc_is_ready_dt(&y_spec)) {
-        LOG_ERR("ADC device not ready");
-        return;
-    }
-
-    LOG_INF("ADC ready: X=%s Y=%s",
-        adc_is_ready_dt(&x_spec) ? "ok" : "ng",
-        adc_is_ready_dt(&y_spec) ? "ok" : "ng");
-
-    err = adc_channel_setup_dt(&x_spec);
-    if (err < 0) {
-        LOG_ERR("Failed to setup X ADC channel: %d", err);
-        return;
-    }
-
-    err = adc_channel_setup_dt(&y_spec);
-    if (err < 0) {
-        LOG_ERR("Failed to setup Y ADC channel: %d", err);
-        return;
-    }
-
-    LOG_INF("ADC channels initialized");
 
     while (1) {
-        int x_mv = 0;
-        int y_mv = 0;
 
-        adc_sequence_init_dt(&x_spec, &x_seq);
-        adc_sequence_init_dt(&y_spec, &y_seq);
+        adc_read(adc_dev, &x_seq);
+        adc_read(adc_dev, &y_seq);
 
-        err = adc_read_dt(&x_spec, &x_seq);
-        if (err == 0) {
-            x_mv = x_buf;
-            (void)adc_raw_to_millivolts_dt(&x_spec, &x_mv);
+        int x = x_buf;
+        int y = y_buf;
+
+        LOG_INF("RAW X=%d Y=%d", x, y);
+
+        bool new_left  = x < DEAD_LOW;
+        bool new_right = x > DEAD_HIGH;
+        bool new_down  = y < DEAD_LOW;
+        bool new_up    = y > DEAD_HIGH;
+
+        if (new_left != left_pressed) {
+            left_pressed = new_left;
+            LOG_INF("LEFT %s", left_pressed ? "ON" : "OFF");
         }
 
-        err = adc_read_dt(&y_spec, &y_seq);
-        if (err == 0) {
-            y_mv = y_buf;
-            (void)adc_raw_to_millivolts_dt(&y_spec, &y_mv);
+        if (new_right != right_pressed) {
+            right_pressed = new_right;
+            LOG_INF("RIGHT %s", right_pressed ? "ON" : "OFF");
         }
 
-        LOG_INF("RAW X=%d RAW Y=%d | X=%d mV Y=%d mV", x_buf, y_buf, x_mv, y_mv);
+        if (new_up != up_pressed) {
+            up_pressed = new_up;
+            LOG_INF("UP %s", up_pressed ? "ON" : "OFF");
+        }
 
-        k_msleep(CONFIG_LEFTPAD_ANALOG_POLL_MS);
+        if (new_down != down_pressed) {
+            down_pressed = new_down;
+            LOG_INF("DOWN %s", down_pressed ? "ON" : "OFF");
+        }
+
+        k_msleep(20);
     }
 }
-
-K_THREAD_DEFINE(leftpad_analog_tid,
-                STACK_SIZE,
-                leftpad_analog_thread,
-                NULL, NULL, NULL,
-                THREAD_PRIORITY,
-                0,
-                0);
-
-#endif
