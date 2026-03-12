@@ -1,3 +1,4 @@
+#include <hal/nrf_saadc.h>
 #include <zephyr/kernel.h>
 #include <zephyr/device.h>
 #include <zephyr/drivers/adc.h>
@@ -18,7 +19,7 @@ static struct adc_channel_cfg x_channel_cfg = {
     .reference = ADC_REF_VDD_1_4,
     .acquisition_time = ADC_ACQ_TIME_DEFAULT,
     .channel_id = 0,
-    .input_positive = NRF_SAADC_AIN0,
+    .input_positive = NRF_SAADC_INPUT_AIN0,
 };
 
 static struct adc_channel_cfg y_channel_cfg = {
@@ -26,7 +27,7 @@ static struct adc_channel_cfg y_channel_cfg = {
     .reference = ADC_REF_VDD_1_4,
     .acquisition_time = ADC_ACQ_TIME_DEFAULT,
     .channel_id = 1,
-    .input_positive = NRF_SAADC_AIN1,
+    .input_positive = NRF_SAADC_INPUT_AIN1,
 };
 
 static struct adc_sequence x_seq = {
