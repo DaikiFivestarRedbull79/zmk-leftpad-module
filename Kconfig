@@ -1,0 +1,23 @@
+menu "Leftpad options"
+
+config LEFTPAD_ANALOG_WASD
+    bool "Enable analog stick to WASD conversion"
+    default y
+
+config LEFTPAD_ANALOG_POLL_MS
+    int "Analog poll interval (ms)"
+    default 20
+
+config LEFTPAD_ANALOG_DEADZONE
+    int "Analog deadzone"
+    default 300
+
+config LEFTPAD_ANALOG_LOW_THRESHOLD
+    int "Analog low threshold"
+    default 900
+
+config LEFTPAD_ANALOG_HIGH_THRESHOLD
+    int "Analog high threshold"
+    default 3100
+
+endmenu
