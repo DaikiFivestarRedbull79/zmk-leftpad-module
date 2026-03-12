@@ -35,6 +35,7 @@ static struct adc_sequence y_seq = {
 };
 
 static void leftpad_analog_thread(void *, void *, void *) {
+    LOG_INF("LEFTPAD ANALOG THREAD STARTED");
     int err;
 
     if (!adc_is_ready_dt(&x_spec) || !adc_is_ready_dt(&y_spec)) {
