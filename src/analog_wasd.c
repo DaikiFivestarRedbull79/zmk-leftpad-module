@@ -82,7 +82,7 @@ static void leftpad_analog_thread(void *, void *, void *) {
             (void)adc_raw_to_millivolts_dt(&y_spec, &y_mv);
         }
 
-        LOG_INF("X=%d mV Y=%d mV", x_mv, y_mv);
+        LOG_INF("RAW X=%d RAW Y=%d | X=%d mV Y=%d mV", x_buf, y_buf, x_mv, y_mv);
 
         k_msleep(CONFIG_LEFTPAD_ANALOG_POLL_MS);
     }
